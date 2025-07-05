@@ -1,0 +1,61 @@
+x
+import matplotlib.pyplot as plt
+
+from samples import (
+    bass,
+    clap,
+    pause
+)
+
+sample_rate = 44100  # samples per second
+
+song = [
+
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.3, sample_rate, freq=100) ],
+    [ bass(0.15, sample_rate, freq=100) ],
+    [ pause(0.2, sample_rate) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.3, sample_rate, freq=100) ],
+    [ bass(0.15, sample_rate, freq=100) ],
+    [ pause(0.2, sample_rate) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.3, sample_rate, freq=100) ],
+    [ bass(0.15, sample_rate, freq=100) ],
+    [ pause(0.2, sample_rate) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+    [ bass(0.5, sample_rate, freq=100) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+    [ bass(0.3, sample_rate, freq=100) ],
+    [ bass(0.15, sample_rate, freq=100) ],
+    [ pause(0.2, sample_rate) ],
+    [ clap(0.5, sample_rate, 0.001) ],
+
+]
+
+# Play the sound
+for sample in song:
+    for instrument in sample:
+        sd.play(instrument, sample_rate)
+        print(instrument)
+    sd.wait()
