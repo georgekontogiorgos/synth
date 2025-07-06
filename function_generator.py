@@ -1,42 +1,31 @@
+
+
 from PyQt5 import uic, QtWidgets, QtCore
+
+from PyQt5.QtWidgets import QMainWindow
+
 import sys
 import time
 from numpy import sin, pi
-import sounddevice as sd
+import threading
+import logging
 
+logger = logging.getLogger(__name__)
 
-class GeneratorThread(QtCore.QThread):
-    new_output = QtCore.pyqtSignal(float)
-
-    def __init__(self, get_frequency, get_gain):
-        super().__init__()
-        self.get_frequency = get_frequency
-        self.get_gain = get_gain
-        self._running = True
-
-    def run(self):
-        t = 0
-        dt = 1e-6
-        while self._running:
-            freq = self.get_frequency()
-            gain = self.get_gain()
-            output = gain * sin(2 * pi * freq * t)
-            self.new_output.emit(output)
-            t += dt
-            time.sleep(dt)
-
-    def stop(self):
-        self._running = False
-        self.wait()
-
-
-class FunctionGenerator(QtWidgets.QMainWindow):  # Changed to QMainWindow
-    def __init__(self):
+class FunctionGenerator(QMainWindow):
+    def __init__(self, queue):
         super().__init__()
 
-        self.frequency = 1
-        self.gain = 1
-        self.thread = None
+        self.queue = queue
+        self.frequency = 100
+        self.gain = 99
+        self.stop_event = threading.Event()
+        self.output_enable = False
+        self.t = 0
+        self.dt = 1 / 44100
+
+        self.thread = threading.Thread(target=self.signal_output)
+        self.thread.start()
 
         uic.loadUi("function_generator.ui", self)
 
@@ -44,32 +33,43 @@ class FunctionGenerator(QtWidgets.QMainWindow):  # Changed to QMainWindow
         self.dial_freq.valueChanged.connect(self.on_freq_changed)
         self.on_button.stateChanged.connect(self.on_on_off_changed)
 
+    def closeEvent(self, event):
+        self.stop_event.set()
+        self.thread.join()
+        event.accept()
+
+    def signal_output(self):
+        while not self.stop_event.is_set():
+            if self.output_enable:
+                output = self.gain * sin(2*pi*self.frequency*self.t)
+            else:
+                output = 0.0
+
+            self.t += self.dt
+            time.sleep(self.dt)
+            
+            logging.debug(f"Output: {output}")
+            
+            self.queue.put(output)
+        logging.info("signal_output thread exited")
+
     def on_gain_changed(self, value):
         self.gain = value
+        logging.info(f"Gain set to {self.gain}.")
         self.lcd_gain.display(value)
 
     def on_freq_changed(self, value):
         self.frequency = value
+        logging.info(f"Frequency set to {self.frequency} Hz.")
         self.lcd_freq.display(value)
 
     def on_on_off_changed(self, state):
         if self.on_button.isChecked():
-            self.thread = GeneratorThread(
-                get_frequency=lambda: self.frequency,
-                get_gain=lambda: self.gain,
-            )
-            self.thread.new_output.connect(self.handle_output)
-            self.thread.start()
-            print("Generator output ON")
+            self.output_enable = True
+            logging.info("Generator output ON.")
         else:
-            if self.thread:
-                self.thread.stop()
-                self.thread = None
-            print("Generator output OFF")
-
-    def handle_output(self, value):
-        print(f"Output: {value}")
-
+            self.output_enable = False
+            logging.info("Generator output OFF.")
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
