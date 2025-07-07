@@ -9,13 +9,13 @@ from numpy import sin, pi
 import sounddevice as sd
 import threading
 import queue
-import numpy
+import numpy as np
 import sounddevice as sd
 import time
 import logging
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='[%(asctime)s][%(levelname)s] %(message)s',
     handlers=[
         logging.FileHandler("app.log"),
@@ -31,8 +31,11 @@ class MainPanel(QMainWindow):
 
         self.func_gen_button.clicked.connect(self.on_click_func_gen)
 
-        self.generator_window = []
-        self.list_queues = []
+        self.samplerate = sd.query_devices(None, 'output')['default_samplerate']
+        print(f"sample rate: {self.samplerate}")
+
+        self.generators = []
+        self.generator_id_counter = 0
 
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.consumer)
@@ -45,39 +48,38 @@ class MainPanel(QMainWindow):
 
     def consumer(self):
 
-        fs = 44100
-        # We will accumulate samples into small chunks to play
-        chunk_size = 256
-        buffer = []
+        def callback(outdata, frames, time, status):
 
-        def callback(outdata, frames, time_info, status):
-            if not self.list_queues:
-                outdata[:] = numpy.zeros((frames, 1), dtype=numpy.float32)
-                return
+            if status:
+                logging.debug(f"{status}")
+            
+            waves = []
+            
+            if self.generators:
+                for generator in self.generators:
+                    waves.append(generator.signal_output(frames))
 
-            out = numpy.zeros((frames, 1), dtype=numpy.float32)
-            q = self.list_queues[0]
+                outdata[:] = waves[0]
+            else:
+                outdata[:] = np.zeros(frames).reshape(-1,1)
 
-            for i in range(frames):
-                try:
-                    out[i] = q.get()
-                except queue.Empty:
-                    out[i] = 0.0
 
-            outdata[:] = out
-            logging.info(f"{outdata}")
-
-        with sd.OutputStream(channels=1, callback=callback, samplerate=fs, blocksize=256):
+        with sd.OutputStream(device=None, channels=1, callback=callback,
+                             samplerate=self.samplerate):
             while not self.stop_event.is_set():
                 time.sleep(0.1)
-        logging.info("Consumer thread exited")
 
     def on_click_func_gen(self):
-        q = queue.Queue(maxsize=1024)
-        generator = FunctionGenerator(q)
-        self.generator_window.append(generator)
-        self.list_queues.append(q)
+        generator = FunctionGenerator(self)
+        self.generators.append(generator)
+        logging.debug(f"{self.generators}")
         generator.show()
+
+    def remove_generator(self, target):
+        try:
+            self.generators.remove(target)
+        except ValueError:
+            logging.error(f"'{target}' not found in the list.")
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
