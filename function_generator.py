@@ -22,6 +22,8 @@ class FunctionGenerator(QMainWindow):
 
         self.main = main
 
+        
+
         self.omega = 628.318530718 # 100 Hz
         self.amplitude = 0.5
         self.output_enable = False

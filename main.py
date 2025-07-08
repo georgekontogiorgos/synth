@@ -30,11 +30,19 @@ class MainPanel(QMainWindow):
         uic.loadUi("main.ui", self)
 
         self.func_gen_button.clicked.connect(self.on_click_func_gen)
+        self.rec_button.clicked.connect(self.on_click_rec)
 
         self.samplerate = sd.query_devices(None, 'output')['default_samplerate']
 
         self.generators = []
         self.generator_id_counter = 0
+
+        self.output_filename = "output.wav"
+
+        self.file = sf.SoundFile(self.output_filename, mode='w', samplerate=int(self.samplerate),
+                channels=1, subtype='PCM_16')
+
+        self.recording = True
 
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.consumer)
@@ -45,49 +53,54 @@ class MainPanel(QMainWindow):
         self.thread.join()
         event.accept()
 
-    def consumer(self, output_filename="output.wav"):
-
-        file = sf.SoundFile(output_filename, mode='w', samplerate=self.samplerate,
-                        channels=1, subtype='PCM_16')
-
-        def mix_audio(frames):
-            try:
-                if not self.generators:
-                    return np.zeros((frames, 1), dtype=np.float32)
-
-                chunks = [gen.get_data(frames) for gen in self.generators]
-                
-                if not all(chunk.shape == chunks[0].shape for chunk in chunks):
-                    raise ValueError("Inconsistent chunk shapes from generators.")
-                
-                return np.sum(chunks, axis=0)
-            except Exception as e:
-                logging.exception("Error while mixing audio")
+    def _mix_audio(self, frames):
+        try:
+            if not self.generators:
                 return np.zeros((frames, 1), dtype=np.float32)
 
-        
-        def callback(outdata, frames, time, status):
-            if status:
-                logging.error(f"Stream status: {status}")
-            outdata[:] = mix_audio(frames)
+            chunks = [gen.get_data(frames) for gen in self.generators]
+            
+            if not all(chunk.shape == chunks[0].shape for chunk in chunks):
+                raise ValueError("Inconsistent chunk shapes from generators.")
+            
+            return np.sum(chunks, axis=0)
+
+        except Exception as e:
+            logging.exception("Error while mixing audio")
+            return np.zeros((frames, 1), dtype=np.float32)
+
+    def _callback(self, outdata, frames, time, status):
+        if status:
+            logging.error(f"Stream status: {status}")
+        mixed = self._mix_audio(frames)
+        outdata[:] = mixed
+        if self.recording:
+            try:
+                self.file.write(mixed.copy())
+            except Exception as e:
+                logging.warning(f"Skipping file write: {e}")
+
+    def consumer(self):
 
         logging.info("Starting audio stream with %d generators", len(self.generators))
 
-        with sd.OutputStream(device=None,
-                            channels=1,
-                            callback=callback,
-                            samplerate=self.samplerate):
-            try:
+        try:
+            with sd.OutputStream(device=None, channels=1,
+                                callback=self._callback,
+                                samplerate=self.samplerate):
                 while not self.stop_event.is_set():
                     time.sleep(0.1)
-            finally:
-                logging.info("Audio stream stopped.")
+        finally:
+            self.recording = False
+            self.file.close()
+            logging.info(f"Recording saved to {self.output_filename}")
 
+    def on_click_rec(self):
+        self.recording = True if self.rec_button.isChecked() else False
 
     def on_click_func_gen(self):
         generator = FunctionGenerator(self)
         self.generators.append(generator)
-        logging.debug(f"{self.generators}")
         generator.show()
 
     def remove_generator(self, target):
