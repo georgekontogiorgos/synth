@@ -63,7 +63,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QDial" name="dial">
+   <widget class="QDial" name="dial_master_gain">
     <property name="geometry">
      <rect>
       <x>220</x>
@@ -71,6 +71,12 @@
       <width>50</width>
       <height>64</height>
      </rect>
+    </property>
+    <property name="maximum">
+     <number>100</number>
+    </property>
+    <property name="value">
+     <number>50</number>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_2">
@@ -123,6 +129,19 @@
     </property>
     <property name="text">
      <string>Demultiplexer</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_6">
+    <property name="geometry">
+     <rect>
+      <x>250</x>
+      <y>150</y>
+      <width>71</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>🔴 REC</string>
     </property>
    </widget>
   </widget>

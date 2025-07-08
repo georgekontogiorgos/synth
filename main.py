@@ -8,9 +8,9 @@ import sys
 from numpy import sin, pi
 import sounddevice as sd
 import threading
-import queue
 import numpy as np
 import sounddevice as sd
+import soundfile as sf
 import time
 import logging
 
@@ -32,7 +32,6 @@ class MainPanel(QMainWindow):
         self.func_gen_button.clicked.connect(self.on_click_func_gen)
 
         self.samplerate = sd.query_devices(None, 'output')['default_samplerate']
-        print(f"sample rate: {self.samplerate}")
 
         self.generators = []
         self.generator_id_counter = 0
@@ -46,28 +45,44 @@ class MainPanel(QMainWindow):
         self.thread.join()
         event.accept()
 
-    def consumer(self):
+    def consumer(self, output_filename="output.wav"):
 
+        file = sf.SoundFile(output_filename, mode='w', samplerate=self.samplerate,
+                        channels=1, subtype='PCM_16')
+
+        def mix_audio(frames):
+            try:
+                if not self.generators:
+                    return np.zeros((frames, 1), dtype=np.float32)
+
+                chunks = [gen.get_data(frames) for gen in self.generators]
+                
+                if not all(chunk.shape == chunks[0].shape for chunk in chunks):
+                    raise ValueError("Inconsistent chunk shapes from generators.")
+                
+                return np.sum(chunks, axis=0)
+            except Exception as e:
+                logging.exception("Error while mixing audio")
+                return np.zeros((frames, 1), dtype=np.float32)
+
+        
         def callback(outdata, frames, time, status):
-
             if status:
-                logging.debug(f"{status}")
-            
-            waves = []
-            
-            if self.generators:
-                for generator in self.generators:
-                    waves.append(generator.signal_output(frames))
+                logging.error(f"Stream status: {status}")
+            outdata[:] = mix_audio(frames)
 
-                outdata[:] = waves[0]
-            else:
-                outdata[:] = np.zeros(frames).reshape(-1,1)
+        logging.info("Starting audio stream with %d generators", len(self.generators))
 
+        with sd.OutputStream(device=None,
+                            channels=1,
+                            callback=callback,
+                            samplerate=self.samplerate):
+            try:
+                while not self.stop_event.is_set():
+                    time.sleep(0.1)
+            finally:
+                logging.info("Audio stream stopped.")
 
-        with sd.OutputStream(device=None, channels=1, callback=callback,
-                             samplerate=self.samplerate):
-            while not self.stop_event.is_set():
-                time.sleep(0.1)
 
     def on_click_func_gen(self):
         generator = FunctionGenerator(self)

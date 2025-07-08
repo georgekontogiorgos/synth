@@ -22,42 +22,34 @@ class FunctionGenerator(QMainWindow):
 
         self.main = main
 
-        self.frequency = 100
-        self.gain = 99
+        self.omega = 628.318530718 # 100 Hz
+        self.amplitude = 0.5
         self.output_enable = False
         self.start_index = 0
-        self.sampling_frequency = main.samplerate
+        self.samplerate = main.samplerate
 
         uic.loadUi("function_generator.ui", self)
 
-        self.dial_gain.valueChanged.connect(self.on_gain_changed)
+        self.dial_gain.valueChanged.connect(self.on_amplitude_changed)
         self.dial_freq.valueChanged.connect(self.on_freq_changed)
         self.on_button.stateChanged.connect(self.on_on_off_changed)
 
-    def signal_output(self, frames):
-        t = (self.start_index + np.arange(frames))/self.sampling_frequency
-        t = t.reshape(-1,1)
+    def get_data(self, frames):
         if self.output_enable:
-            wave = self.gain*np.sin(2 * np.pi * self.frequency * t)
-
-            # plt.plot(t, wave)
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Amplitude')
-            # plt.title('Generated Sine Wave')
-            # plt.grid(True)
-            # plt.show()
+            t = (self.start_index + np.arange(frames)) / self.samplerate
+            t = t.reshape(-1, 1)
+            self.start_index += frames
+            return self.amplitude*np.sin(self.omega*t)
         else:
-            wave = t*0
-        self.start_index += frames
+            return np.zeros(frames).reshape(-1,1)
         
-        return wave   
         
-    def on_gain_changed(self, value):
-        self.gain = value
+    def on_amplitude_changed(self, value):
+        self.amplitude = value/100
         self.lcd_gain.display(value)
 
     def on_freq_changed(self, value):
-        self.frequency = value
+        self.omega = 2*np.pi*value
         self.lcd_freq.display(value)
 
     def on_on_off_changed(self, state):
@@ -70,9 +62,8 @@ class FunctionGenerator(QMainWindow):
         return self.id
 
     def closeEvent(self, event):
-        # Call your custom function here
         self.main.remove_generator(self)
-        event.accept()  # Accept the event to allow the window to close
+        event.accept()
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
